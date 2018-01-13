@@ -21,5 +21,5 @@ pdfcommentextractor.cpp:
 	g++ -c -I/usr/include/poppler/cpp src/pdfcommentextractor.cpp -o build/pdfcommentextractor.o
 
 all: |./build pdfcommentextractor.cpp
-	g++ -lpoppler -lpoppler-cpp build/pdfcommentextractor.o
+	g++ -lpoppler -lpoppler-cpp build/pdfcommentextractor.o -opdfcommentextractor
 
