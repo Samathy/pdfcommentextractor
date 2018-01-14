@@ -2,15 +2,26 @@
 #include <string>
 #include <stdlib.h> //realpath
 #include <stdio.h>
+#include <error.h>
 #include <string.h>
 #include <vector>
+#include <exception>
+#include <tuple>
 
 //TODO reorder these includes
 
 #include <glib.h>
 #include <poppler.h>
 
+class exceptionWithMessage: public std::exception
+{
+    public:
+    std::string message;
+    exceptionWithMessage(std::string s) : message(s){};
+    ~exceptionWithMessage() throw () {};
+    const char * what() const throw() {return message.c_str();};
 
+};
 
 
 class document
@@ -26,9 +37,10 @@ class document
             if (error != NULL)
             {   
                 std::cout << "Error getting URI" << std::endl;
-                printf(error->message);
-                return; 
+                throw exceptionWithMessage(error->message);
             }
+
+            std::cout << "URI" << filename_uri;
 
             g_clear_error(&error);
 
@@ -37,8 +49,7 @@ class document
             if (error != NULL)
             {
                 std::cout << "Error Opening file" << std::endl;
-                printf(error->message);
-                return;
+                throw error->message;
             }
             this->numPages = poppler_document_get_n_pages(this->popp_doc);
         }
@@ -68,11 +79,11 @@ class document
         }
 
         /** Returns a vector of comments for a given page */
-        std::vector<std::string> getComments(const PopplerPage * page)
+        std::vector<std::tuple<int, std::string>> getComments(const PopplerPage * page)
         {
             std::cout << "Getting comments" << std::endl;
 
-            std::vector<std::string> comments; 
+            std::vector<std::tuple<int,std::string>> comments; 
             //TODO make it a vector of pairs and return the page number and title and stuff.
             GList * annotList = getAnnotationsList(page);
             for (GList * l = annotList; l !=NULL; l = l->next)
@@ -85,8 +96,8 @@ class document
                     PopplerRectangle rect;
 
                     poppler_annot_get_rectangle(annotMapping->annot, &rect);
-
-                    comments.push_back(std::string(poppler_page_get_text_for_area((PopplerPage*)page, &rect)));
+                    std::tuple<int, std::string>comment (poppler_page_get_index((PopplerPage*)page), std::string(poppler_page_get_text_for_area((PopplerPage*)page, &rect)));
+                    comments.push_back(comment);
                 }
             }
             poppler_page_free_annot_mapping(annotList);
@@ -115,24 +126,28 @@ int main(int argv, char ** argc)
     //TODO Add checks to make sure we have the right number of args
     char * filename = realpath(argc[1], NULL);
 
+    if (filename == NULL)
+    {     std::cout << "Realpath failed" << std::endl << strerror(errno) << std::endl;    }
+
     document * d = new document(std::string(filename));
 
-    std::vector<std::string> comments;
+    std::vector<std::tuple<int, std::string>> comments;
 
     int numPages = d->getNumPages();
     int i = 0;
     while (i < numPages)
     {
-        std::vector<std::string> tmpComments;
+        std::vector<std::tuple<int, std::string>> tmpComments;
         tmpComments = d->getComments(d->getPage(i));
         std::copy(tmpComments.begin(), tmpComments.end(), std::back_inserter(comments));
         i++;
     }
 
-    for (std::string s: comments)
+    for (std::tuple<int, std::string> s: comments)
     {
         std::cout << "-----------------------------" << std::endl;
-        std::cout << s << std::endl;
+        std::cout << "Page: " << std::get<0>(s) << std::endl;
+        std::cout << std::get<1>(s) << std::endl;
     }
 
     return 0;
