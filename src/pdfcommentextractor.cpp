@@ -116,10 +116,47 @@ class document
 };
 
 
+/** \brief Unwraps the text to a given line width */
+std::string textUnwrap(std::string text, int linewidth)
+{
+
+    std::string text_copy = text;
+    int lastFoundLineEnding;
+    size_t firstLineEnding;
+
+    while((firstLineEnding = text_copy.find("-\n", 0)) != std::string::npos)
+    {    text_copy = text_copy.replace(firstLineEnding, 2, "");    }
+
+    while((firstLineEnding = text_copy.find("\n", 0)) != std::string::npos)
+    {    text_copy = text_copy.replace(firstLineEnding, 1, " ");    }
+    
+    for (int i = 0; i<text_copy.length(); i=i+linewidth)
+    {
+        if(i == 0)
+        {
+            continue;
+        }
+        int loopback = i;
+        while(text_copy[i] != ' ')
+        {    i--;    }
+        text_copy.replace(i, 1, "\n");
+    }
+
+    return text_copy;
+
+    //Unwrap text and remove hyphens
+    //Wrap to given linewidth
+    
+}
+
+
 
 int main(int argv, char ** argc)
 {
     //TODO add getopt arguments.
+    //add page numbers, y/n
+    //only select given page 
+    //unwrap text
 
     GError * error = nullptr;
 
@@ -147,7 +184,7 @@ int main(int argv, char ** argc)
     {
         std::cout << "-----------------------------" << std::endl;
         std::cout << "Page: " << std::get<0>(s) << std::endl;
-        std::cout << std::get<1>(s) << std::endl;
+        std::cout << textUnwrap(std::get<1>(s), 80) << std::endl;
     }
 
     return 0;
