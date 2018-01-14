@@ -7,6 +7,8 @@
 #include <vector>
 #include <exception>
 #include <tuple>
+#include <unistd.h>
+#include <fstream>
 
 //TODO reorder these includes
 
@@ -30,17 +32,16 @@ class document
     public:
         document(std::string filename)
         {
-            std::cout << "Creating document" << std::endl;
-            GError * error;
+            GError * error = nullptr;
+
             //glib requires URIs (file:///home/foo/bar/baz.pdf)
             gchar * filename_uri = g_filename_to_uri(filename.c_str(), NULL , &error);
+
             if (error != NULL)
             {   
-                std::cout << "Error getting URI" << std::endl;
+                std::cout << "Error getting URI for filename:"<< filename << std::endl;
                 throw exceptionWithMessage(error->message);
             }
-
-            std::cout << "URI" << filename_uri;
 
             g_clear_error(&error);
 
@@ -61,8 +62,6 @@ class document
 
         const PopplerPage * getPage(int index)
         {
-            std::cout << "Getting Page" << index << std::endl;
-
             if (index > this->numPages)
             {
                 //We could throw here, or we could be lazy.
@@ -81,8 +80,6 @@ class document
         /** Returns a vector of comments for a given page */
         std::vector<std::tuple<int, std::string>> getComments(const PopplerPage * page)
         {
-            std::cout << "Getting comments" << std::endl;
-
             std::vector<std::tuple<int,std::string>> comments; 
             //TODO make it a vector of pairs and return the page number and title and stuff.
             GList * annotList = getAnnotationsList(page);
@@ -115,7 +112,6 @@ class document
 
 };
 
-
 /** \brief Unwraps the text to a given line width */
 std::string textUnwrap(std::string text, int linewidth)
 {
@@ -133,9 +129,7 @@ std::string textUnwrap(std::string text, int linewidth)
     for (int i = 0; i<text_copy.length(); i=i+linewidth)
     {
         if(i == 0)
-        {
-            continue;
-        }
+        {    continue;    }
         int loopback = i;
         while(text_copy[i] != ' ')
         {    i--;    }
@@ -151,8 +145,54 @@ std::string textUnwrap(std::string text, int linewidth)
 
 
 
-int main(int argv, char ** argc)
+int main(int argc, char ** argv)
 {
+
+    bool pageNums = false;
+    bool unwrap = false;
+    int unwrapWidth = 80;
+    bool allPages = true;
+    bool tostdout = true;
+    std::string filename;
+    std::string outputFilename;
+    std::vector<int> pages;
+
+    char c;
+
+    std::ostream * output = &std::cout;
+
+    while ((c = getopt(argc, argv, "pu:P:f:o:h")) != -1)
+    {
+        switch(c)
+        {
+            case 'p':
+                pageNums = true;
+                break;
+            case 'u':
+                unwrap = true;
+                unwrapWidth = std::stoi(optarg);
+                break;
+            case 'P':
+                allPages = false;
+                pages.push_back(std::stoi(optarg));
+                break;
+            case 'f':
+                filename = std::string(realpath(optarg, NULL));
+                break;
+            case 'o':
+                tostdout = false;
+                outputFilename = std::string(optarg);
+                break;
+            case 'h':
+                std::cout << "Usage: pdfcommentextractor [-pu] -f [filename] -P [specificPage] -o [ouputFile]" << std::endl;
+                break;
+            case '?':
+                std::cout << "Usage: pdfcommentextractor [-pu] -f [filename] -P [specificPage] -o [ouputFile]" << std::endl;
+                break;
+        }
+
+    }
+
     //TODO add getopt arguments.
     //add page numbers, y/n
     //only select given page 
@@ -161,31 +201,56 @@ int main(int argv, char ** argc)
     GError * error = nullptr;
 
     //TODO Add checks to make sure we have the right number of args
-    char * filename = realpath(argc[1], NULL);
 
-    if (filename == NULL)
-    {     std::cout << "Realpath failed" << std::endl << strerror(errno) << std::endl;    }
-
-    document * d = new document(std::string(filename));
+    document * d = new document(filename);
 
     std::vector<std::tuple<int, std::string>> comments;
 
     int numPages = d->getNumPages();
-    int i = 0;
-    while (i < numPages)
+    if (!allPages)
     {
-        std::vector<std::tuple<int, std::string>> tmpComments;
-        tmpComments = d->getComments(d->getPage(i));
-        std::copy(tmpComments.begin(), tmpComments.end(), std::back_inserter(comments));
-        i++;
+        for(int pageNumber: pages)
+        {
+            std::cout << pageNumber << std::endl;
+            if(pageNumber < numPages)
+            {
+                std::vector<std::tuple<int, std::string>> tmpComments;
+                tmpComments = d->getComments(d->getPage(pageNumber));
+                std::copy(tmpComments.begin(), tmpComments.end(), std::back_inserter(comments));
+            }
+        }
+    }
+    else
+    {
+        int i = 0;
+        while (i < numPages)
+        {
+            std::vector<std::tuple<int, std::string>> tmpComments;
+            tmpComments = d->getComments(d->getPage(i));
+            std::copy(tmpComments.begin(), tmpComments.end(), std::back_inserter(comments));
+            i++;
+        }
+   }
+
+    if (!tostdout && !outputFilename.empty())
+    {
+        output = new std::ofstream(outputFilename, std::ofstream::out|std::ofstream::app);
     }
 
     for (std::tuple<int, std::string> s: comments)
     {
-        std::cout << "-----------------------------" << std::endl;
-        std::cout << "Page: " << std::get<0>(s) << std::endl;
-        std::cout << textUnwrap(std::get<1>(s), 80) << std::endl;
+        *output << std::string(unwrapWidth, '-') << std::endl;
+        if (pageNums)
+        {    *output << "Page: " << std::get<0>(s) << std::endl;    }
+        if (unwrap)
+        {    *output << textUnwrap(std::get<1>(s), unwrapWidth) << std::endl;    }
+        else
+        {    *output << std::get<1>(s) << std::endl;    }
     }
+    if(!tostdout)
+    {    delete(output);    }
+
+    delete(d);
 
     return 0;
 
