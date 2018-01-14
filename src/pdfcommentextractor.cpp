@@ -78,7 +78,7 @@ class document
         }
 
         /** Returns a vector of comments for a given page */
-        std::vector<std::tuple<int, std::string>> getComments(const PopplerPage * page)
+        std::vector<std::tuple<int, std::string>> getComments(const PopplerPage * page, bool interactive)
         {
             std::vector<std::tuple<int,std::string>> comments; 
             //TODO make it a vector of pairs and return the page number and title and stuff.
@@ -92,7 +92,69 @@ class document
                 {
                     PopplerRectangle rect;
 
-                    poppler_annot_get_rectangle(annotMapping->annot, &rect);
+                    if(interactive)
+                    {
+                        bool confirm = false;
+                        double val;
+                        std::string input;
+
+                        while(!confirm)
+                        {
+                            poppler_annot_get_rectangle(annotMapping->annot, &rect);
+                            std::cout << poppler_page_get_text_for_area((PopplerPage*)page, &rect) << std::endl;
+                            std::cout << "Rectangle coords: " << "x1: " << rect.x1 << " y1:" << rect.y1 << " x2:" << rect.x2 << " y2:" << rect.y2 << std::endl;
+                            std::cout << "Modify coordinates? y/n" << std::endl;
+                            std::cin >> input;
+
+                            while(input == "y" || input == "Y")
+                            {
+                                    std::cout << "Which coord? [x1,y1,x2,y2]" << std::endl;
+                                    std::cin >> input;
+
+                                    if (input == "x1")
+                                    {
+                                        std::cout << "x1: ";
+                                        std::cin >> input;
+                                        val = std::stod(input, NULL);
+                                        rect.x1 = val;
+                                    }
+                                    else if (input == "y1")
+                                    {
+                                        std::cout << "y1: ";
+                                        std::cin >> input;
+                                        val = std::stod(input, NULL);
+                                        rect.y1 = val;
+                                    }
+                                    else if (input == "x2")
+                                    {
+                                        std::cout << "x2: ";
+                                        std::cin >> input;
+                                        val = std::stod(input, NULL);
+                                        rect.x2 = val;
+                                    }
+                                    else if (input == "y2")
+                                    {
+                                        std::cout << "y2: ";
+                                        std::cin >> input;
+                                        val = std::stod(input, NULL);
+                                        rect.y2 = val;
+                                    }
+                                    else
+                                    {    std::cout << "invalid input" << std::endl;    }
+
+                                    std::cout << "Modify coordinates? y/n" << std::endl;
+                                    std::cin >> input;
+                            }
+
+
+                            std::cout << poppler_page_get_text_for_area((PopplerPage*)page, &rect);
+                            std::cout << "Confirm text? y/n" << std::endl;
+                            std::cin >> input;
+                            if(input =="y" || input == "y")
+                            {    confirm = true;    }
+
+                        }
+                    }
                     std::tuple<int, std::string>comment (poppler_page_get_index((PopplerPage*)page), std::string(poppler_page_get_text_for_area((PopplerPage*)page, &rect)));
                     comments.push_back(comment);
                 }
@@ -153,6 +215,7 @@ int main(int argc, char ** argv)
     int unwrapWidth = 80;
     bool allPages = true;
     bool tostdout = true;
+    bool interactive = false;
     std::string filename;
     std::string outputFilename;
     std::vector<int> pages;
@@ -161,7 +224,7 @@ int main(int argc, char ** argv)
 
     std::ostream * output = &std::cout;
 
-    while ((c = getopt(argc, argv, "pu:P:f:o:h")) != -1)
+    while ((c = getopt(argc, argv, "pu:P:f:o:hi")) != -1)
     {
         switch(c)
         {
@@ -183,24 +246,22 @@ int main(int argc, char ** argv)
                 tostdout = false;
                 outputFilename = std::string(optarg);
                 break;
+            case 'i':
+                interactive = true;
+                break;
             case 'h':
                 std::cout << "Usage: pdfcommentextractor [-pu] -f [filename] -P [specificPage] -o [ouputFile]" << std::endl;
+                std::cout << "-p     Show page numbers\n-i    Interactive mode." << std::endl;
                 break;
             case '?':
                 std::cout << "Usage: pdfcommentextractor [-pu] -f [filename] -P [specificPage] -o [ouputFile]" << std::endl;
+                std::cout << "-p     Show page numbers\n-i    Interactive mode." << std::endl;
                 break;
         }
 
     }
 
-    //TODO add getopt arguments.
-    //add page numbers, y/n
-    //only select given page 
-    //unwrap text
-
     GError * error = nullptr;
-
-    //TODO Add checks to make sure we have the right number of args
 
     document * d = new document(filename);
 
@@ -215,7 +276,7 @@ int main(int argc, char ** argv)
             if(pageNumber < numPages)
             {
                 std::vector<std::tuple<int, std::string>> tmpComments;
-                tmpComments = d->getComments(d->getPage(pageNumber));
+                tmpComments = d->getComments(d->getPage(pageNumber), interactive);
                 std::copy(tmpComments.begin(), tmpComments.end(), std::back_inserter(comments));
             }
         }
@@ -226,7 +287,7 @@ int main(int argc, char ** argv)
         while (i < numPages)
         {
             std::vector<std::tuple<int, std::string>> tmpComments;
-            tmpComments = d->getComments(d->getPage(i));
+            tmpComments = d->getComments(d->getPage(i), interactive);
             std::copy(tmpComments.begin(), tmpComments.end(), std::back_inserter(comments));
             i++;
         }
