@@ -21,11 +21,11 @@ Run:
 
 #### TODO
 
-    [x] Extract highlighted text
-    [x] Allow interactive editing of rectangles
-    [x] Nicely format extracted text
-    [x] Extract to stdout or text file
-    [] Extract commented text
+- [x] Extract highlighted text
+- [x] Allow interactive editing of rectangles
+- [x] Nicely format extracted text
+- [x] Extract to stdout or text file
+- [] Extract commented text (From floating annotations)
 
 #### Known issues
 
